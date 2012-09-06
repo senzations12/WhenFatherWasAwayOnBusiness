@@ -32,6 +32,7 @@ import com.google.zxing.client.android.share.ShareActivity;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -44,6 +45,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
@@ -64,13 +66,21 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.text.DateFormat;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -541,14 +551,52 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       //barcodeImageView.setImageBitmap(barcode);
     }
     
+    final String id = rawResult.getText();
+    
+    final Set<String> alreadySeen = new HashSet<String>();
+    
+    
+    
+    File root = Environment.getExternalStorageDirectory();
+    File file = new File(root, "senzations12.txt");
+    Date begin = null;
+    
+    try {
+    	if (file.exists()) {
+    		BufferedReader in = new BufferedReader(new FileReader(file));
+        	begin = new Date(Long.parseLong(in.readLine()));
+        	String input = null;
+        	while ((input = in.readLine()) != null)
+        		alreadySeen.add(input);
+        	in.close();
+    	} else {
+    		begin = Calendar.getInstance().getTime();
+    	}
+	} catch (IOException e) {
+	    Log.e("TAG", "Could not read file " + e.getMessage());
+	}
+    
+    alreadySeen.add(id);
+        try {
+                if (root.canWrite()){
+                	PrintWriter out = new PrintWriter(new FileWriter(file));
+                	out.println(begin.getTime());
+                	for (String input : alreadySeen)
+                		out.println(input);
+                	out.close();
+                }
+        } catch (IOException e) {
+            Log.e("TAG", "Could not write file " + e.getMessage());
+        }
+
 
     TextView formatTextView = (TextView) findViewById(R.id.format_text_view);
-    formatTextView.setText(rawResult.getBarcodeFormat().toString());
+    formatTextView.setText(alreadySeen.size() + " / 6");
 
     TextView typeTextView = (TextView) findViewById(R.id.type_text_view);
-    typeTextView.setText(resultHandler.getType().toString());
-
     DateFormat formatter = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
+    typeTextView.setText(formatter.format(begin));
+
     String formattedTime = formatter.format(new Date(rawResult.getTimestamp()));
     TextView timeTextView = (TextView) findViewById(R.id.time_text_view);
     timeTextView.setText(formattedTime);
@@ -630,6 +678,14 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
       if (displayContents != null) {
         clipboard.setText(displayContents);
       }
+    }
+    
+    if (alreadySeen.size() == 6) {
+    	AlertDialog.Builder builder = new AlertDialog.Builder(this);
+    	builder.setMessage("You finished in " + (Calendar.getInstance().getTimeInMillis() - begin.getTime()) / (1000 * 60) + " mins")
+    	       .setCancelable(true);
+    	AlertDialog alert = builder.create();
+    	alert.show();
     }
   }
 
